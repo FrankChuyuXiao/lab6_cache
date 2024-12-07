@@ -6,16 +6,16 @@ Due: 12/3/12, 11:00 pm
 
 Mystery Cache Geometries:
 mystery0:
-    block size = 16 bytes
-    cache size = 65336 bytes
-    associativity = 2
+    block size = 64 bytes
+    cache size = 256 bytes
+    associativity = 
 mystery1:
-    block size = 
-    cache size = 
+    block size = 4 bytes
+    cache size = 16 bytes
     associativity = 
 mystery2:
-    block size = 
-    cache size = 
+    block size = 32
+    cache size = 128 bytes
     associativity = 
 */
 
@@ -32,38 +32,50 @@ int get_block_size();
    Returns the size (in B) of the cache
 */
 int get_cache_size(int block_size) {
-  /*
-  int num_blocks = 0;
   addr_t addr = 0;
-  bool_t is_filled = FALSE;
+  int num_blocks = 0;
 
-  flush_cache();
   while (TRUE) {
-    for(int i = 0; i < block_size; i++){
-      if(access_cache(addr + i)){
-        is_filled = TRUE;
-        break;
-      }
-    }
-    if(!is_filled){
+    if (access_cache(addr)) {
+      num_blocks+=2;
+      addr += block_size;
+    } else {
       break;
     }
-    num_blocks++;
-    addr += block_size;
   }
-  return num_blocks * block_size;
-  */
-  return 0;
+
+  return num_blocks * block_size;  // Cache size = number of blocks * block size
 }
 
 /*
    Returns the associativity of the cache
 */
 int get_cache_assoc(int size) {
-  int assoc;
+  addr_t addr = 0;
+  int block_size = get_block_size();  // Get the block size (already known)
+  int num_sets = size / block_size;  // Number of sets in the cache
   
+  // Test associativity starting from 1-way to num_sets-way
+  for (int assoc = 1; assoc <= num_sets; assoc++) {
+    flush_cache();  // Clear the cache before each associativity test
+    
+    int i;
+    // Access a series of blocks and check cache hits
+    for (i = 0; i < num_sets * assoc; i++) {
+      addr_t probe_addr = addr + (i * block_size);
+      if (!access_cache(probe_addr)) {
+        // If we get a miss, break out, as we've tested this level of associativity
+        break;
+      }
+    }
 
-  return assoc;
+    // If the number of accesses didn't exceed the associativity, we've found the correct associativity
+    if (i == num_sets * assoc) {
+      return assoc;  // Return the associativity when no miss occurred
+    }
+  }
+
+  return 1;  // If no associativity found, return 1 (default to direct-mapped cache)
 }
 
 /*
