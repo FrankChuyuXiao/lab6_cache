@@ -8,15 +8,15 @@ Mystery Cache Geometries:
 mystery0:
     block size = 64 bytes
     cache size = 256 bytes
-    associativity = 
+    associativity = 4
 mystery1:
     block size = 4 bytes
     cache size = 16 bytes
-    associativity = 
+    associativity = 2
 mystery2:
     block size = 32
     cache size = 128 bytes
-    associativity = 
+    associativity = 4
 */
 
 #include <stdlib.h>
@@ -51,31 +51,39 @@ int get_cache_size(int block_size) {
    Returns the associativity of the cache
 */
 int get_cache_assoc(int size) {
-  addr_t addr = 0;
-  int block_size = get_block_size();  // Get the block size (already known)
-  int num_sets = size / block_size;  // Number of sets in the cache
-  
-  // Test associativity starting from 1-way to num_sets-way
-  for (int assoc = 1; assoc <= num_sets; assoc++) {
-    flush_cache();  // Clear the cache before each associativity test
-    
-    int i;
-    // Access a series of blocks and check cache hits
-    for (i = 0; i < num_sets * assoc; i++) {
-      addr_t probe_addr = addr + (i * block_size);
-      if (!access_cache(probe_addr)) {
-        // If we get a miss, break out, as we've tested this level of associativity
-        break;
-      }
-    }
+    addr_t addr = 0;
+    int block_size = get_block_size(); // Get the block size
+    int num_blocks = size / block_size; // Total number of blocks in the cache
+    int assoc = 1; // Start with 1-way associativity (direct-mapped)
+    int num_sets;
 
-    // If the number of accesses didn't exceed the associativity, we've found the correct associativity
-    if (i == num_sets * assoc) {
-      return assoc;  // Return the associativity when no miss occurred
-    }
-  }
+    flush_cache(); // Flush the cache before testing
 
-  return 1;  // If no associativity found, return 1 (default to direct-mapped cache)
+    // Test associativity from 1-way upwards
+    while (assoc <= num_blocks) {
+        num_sets = num_blocks / assoc;  // Calculate number of sets for this associativity level
+
+        // Test by accessing multiple addresses that map to the same set
+        int hit_count = 0;
+        for (int i = 0; i < num_sets; i++) {
+            for (int j = 0; j < assoc; j++) {
+                addr_t probe_addr = addr + (i * assoc + j) * block_size;  // Access different addresses in the same set
+                if (access_cache(probe_addr)) {
+                    hit_count++;
+                } else {
+                    break;
+                }
+            }
+
+            if (hit_count != (i + 1) * assoc) {
+                break;
+            }
+        }
+
+        // Double the associativity for the next test
+        assoc *= 2;
+    }
+    return assoc;
 }
 
 /*
